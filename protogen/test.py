@@ -56,25 +56,25 @@ def run_plugin(
     # Open stdin and stdout for the plugin.
     # We need SpoledTemporaryFile(mode="w+t")._file because its a TextIOWrapper
     # which sys.stdin and sys.stdout also are.
-    fake_stdin = tempfile.SpooledTemporaryFile(mode="w+t")._file
-    fake_stdin.buffer.write(req.SerializeToString())
-    fake_stdin.flush()
-    fake_stdin.seek(0)
-    fake_stdout = tempfile.SpooledTemporaryFile(mode="w+t")._file
+    with tempfile.SpooledTemporaryFile(mode="w+t") as tmp_stdin:
+        with tempfile.SpooledTemporaryFile(mode="w+t") as tmp_stdout:
+            fake_stdin = tmp_stdin._file
+            fake_stdin.buffer.write(req.SerializeToString())
+            fake_stdin.flush()
+            fake_stdin.seek(0)
+            
+            fake_stdout = tmp_stdout._file
 
-    _stdin, sys.stdin = sys.stdin, fake_stdin
-    _stdout, sys.stdout = sys.stdout, fake_stdout
+            _stdin, sys.stdin = sys.stdin, fake_stdin
+            _stdout, sys.stdout = sys.stdout, fake_stdout
 
-    # Call the plugin under test.
-    import_module(plugin)
+            # Call the plugin under test.
+            import_module(plugin)
 
-    fake_stdout.seek(0)
-    resp = google.protobuf.compiler.plugin_pb2.CodeGeneratorResponse.FromString(
-        fake_stdout.buffer.read()
-    )
-
-    fake_stdin.close()  # will remove tmp files
-    fake_stdout.close()
+            fake_stdout.seek(0)
+            resp = google.protobuf.compiler.plugin_pb2.CodeGeneratorResponse.FromString(
+                fake_stdout.buffer.read()
+            )
 
     # Reset stdin and stdout.
     sys.stdin = _stdin
